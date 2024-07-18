@@ -1,38 +1,79 @@
-const { IgApiClient } = require('instagram-private-api'); // 3rd party api for posting on instagram
-const fs = require('fs'); // to access and read files
-const schedule = require('node-schedule'); // for scheduling tasks
+require('dotenv').config(); // to save id and password
+const axios = require('axios');  //for connecting to internet and posting
+const cron = require('node-cron');  //for scheduling
 
-const ig = new IgApiClient();
 
-// you can also use env file
-const username = 'your_username';
-const password = 'your_password';
-const imagePath = '/test.jpg';
 
-async function login() {
-  ig.state.generateDevice(username);
-  await ig.account.login(username, password);
-  console.log('Logged in successfully!');
-}
+const ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN;
+const USER_ID = process.env.INSTAGRAM_USER_ID
+;
 
-async function uploadPhoto() {
-  const imageBuffer = fs.readFileSync(imagePath);
-  const publish = await ig.publish.photo({
-    file: imageBuffer,
-    caption: 'Hello from Node.js!',
-  });
-  console.log('Post published successfully:', publish);
-}
+const postPhoto = async (imageUrl, caption) => {
+  try {
+        const response = await axios.post(
+      `https://graph.facebook.com/v12.0/${USER_ID}/media`,
+        {
+        image_url: imageUrl,
+        caption: caption,
+        access_token: ACCESS_TOKEN,
+      }
+    );
 
-async function schedulePost() {
-  const job = schedule.scheduleJob('*/5 * * * *', async () => { // runs every 5 minutes
-    try {
-      await login();
-      await uploadPhoto();
-    } catch (err) {
-      console.error('Error:', err);
-    }
-  });
-  console.log('Post scheduled successfully!');
+const creationId = response.data.id;
 
-schedulePost(); 
+    
+    await axios.post(
+      `https://graph.facebook.com/v12.0/${USER_ID}/media_publish`,
+      {
+        creation_id: creationId,
+        access_token: ACCESS_TOKEN,
+      });
+
+    console.log('Posted photo:', caption);
+  } 
+  catch (error)
+   {
+    console.error('Error posting photo:', error.response.data);
+  }};
+
+// Scheduling
+cron.schedule('0 12 * * *', () => {
+  const imageUrl = '/home.jpeg';
+  const caption = 'Carpe diem!';
+  postPhoto(imageUrl, caption);
+});
+
+// Like scheduling
+const likeMedia = async (mediaId) => {
+  try {
+    await axios.post(
+      `https://graph.facebook.com/v12.0/${mediaId}/likes`,
+      {
+        access_token: ACCESS_TOKEN,
+      }
+    );
+    console.log('Liked post:', mediaId);
+  } catch (error) {
+    console.error('Error occured:', error.response.data);
+  }
+};
+
+// commenting
+const commentOnMedia = async (mediaId, comment) => {
+  try {
+    await axios.post(
+      `https://graph.facebook.com/v12.0/${mediaId}/comments`,
+      {
+        message: comment,
+        access_token: ACCESS_TOKEN,
+      }
+    );
+    console.log('Commented :', mediaId);
+  } catch (error) {
+    console.error('Error occured:', error.response.data);
+  }
+};
+
+
+likeMedia('media_id_here');
+commentOnMedia('media_id_here', 'This post looks lovely !');
